@@ -5,7 +5,7 @@ import os
 import sys
 import time
 import math
-import pandas as import pd
+import pandas as pd
 import requests
 import shutil # to save it locally
 import concurrent.futures
@@ -34,14 +34,30 @@ class generateData:
         '''
         base_link = 'https://www.psacard.com/'
         with open(filepath, 'r') as file:
-        for f in file.readlines():
-            self.links.append((base_link + f.strip('\u200b').strip(' ')[1:]).strip('\n'))
-        #strip the file of the lines that the javascript file generates
+            for f in file.readlines():
+                self.links.append((base_link + f.strip('\u200b').strip(' ')[1:]).strip('\n'))
+            #strip the file of the lines that the javascript file generates
         with open(filepath.strip('.txt') + ('_links.txt'), 'w') as file:
-        for link in self.links:
-            file.write(link + '\n')
-        #re load the cleaned data
+            for link in self.links:
+                file.write(link + '\n')
+            #re load the cleaned data
         return self.links
+    
+    def scrapeCSV(self, links):
+        '''
+        Scrape our CSVs.
+        '''
+        if not os.path.exists("data"):
+            os.makedirs("data")
+        if type(links) == list:
+            urls = links
+        else:
+            with open(links, 'r') as file:
+                urls = file.readlines()
+        for url in urls:
+            # Initialize class and execute web scraping
+            pap = PsaAuctionPrices(url)
+            pap.scrape()
 
     def createData(self, filepath):
         '''
@@ -50,15 +66,15 @@ class generateData:
         '''
         csv_files = os.listdir(filepath)
         for csv in csv_files:
-            if csv_path + csv == 'psa-scrape-master/auction_prices_realized/data/.ipynb_checkpoints':
+            if filepath + csv == 'psa-scrape-master/auction_prices_realized/data/.ipynb_checkpoints':
                 #if you are running this in a jupyter notebook
                 continue
-            self.data.append(pd.read_csv(csv_path+csv))
+            self.data.append(pd.read_csv(filepath + csv))
         df = pd.concat(self.data)
-        df.to_csv(output_csv, index = False)
+        df.to_csv(self.output_csv, index = False)
         return df
 
-    def scrapeImages(self, df, set):
+    def scrapeImages(self, df, sets):
         '''
         This returns all the scraped images to a folder.
         It takes in our dataframe from PSAGrade, assuming
@@ -69,12 +85,14 @@ class generateData:
         base set was our first batch so it has no set number, but
         any other set will be labelled with an id
         '''
+        if not os.path.exists("Images"):
+            os.makedirs("Images")
         start = time.time()
         success = []
         fail = []
         for i in range(len(df)):
             r = requests.get(df['img_url'][i], stream = True)
-            filename = 'set' + str(set) + str(i) + '.jpg'
+            filename = 'set-' + str(sets) +'-' + str(i) + '.jpg'
             if r.status_code == 200:
                 # Set decode_content value to True, otherwise the downloaded image file's size will be zero.
                 r.raw.decode_content = True
@@ -92,14 +110,14 @@ class generateData:
                 fail.append(i)
         return success, fail
 
-    def threadedScrape(self, df, set):
+    def threadedScrape(self, df, sets):
         '''
         Same as the scraper from before, however use with caution.
         Once this threaded scraper is started, it cannot be stopped.
         '''
         def scrapeImage(index, img):
             r = requests.get(img, stream = True)
-            filename = str(index) + '.jpg'
+            filename = 'set' + str(sets) + str(i) + '.jpg'
             if r.status_code == 200:
                 # Set decode_content value to True, otherwise the downloaded image file's size will be zero.
                 r.raw.decode_content = True
